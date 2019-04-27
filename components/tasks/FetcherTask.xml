@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+ 
+<component name = "FetcherTask" extends = "Task" >
+ 
+  <interface>
+    <field id = "url" type = "string" />
+    <field id = "result" type = "assocarray" />
+  </interface>
+ 
+  <script type = "text/brightscript" >
+    <![CDATA[
+ 
+    sub init()
+      m.top.functionName = "getContent"
+      m.top.url = ""
+      m.top.result = {}
+    end sub
+ 
+    sub getContent()
+        print "Fetch: " + m.top.url
+        ut = CreateObject("roUrlTransfer")
+        ut.AddHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.81 Safari/537.36")
+        ec = ut.EnableEncodings(true)
+        if ec = false
+            print "Encoding failed"
+        end if
+        ut.EnablePeerVerification(false)
+        ut.SetPort(CreateObject("roMessagePort"))
+        ut.SetUrl(m.top.url)
+        res = ut.AsyncGetToString()
+        if res = false
+            print "Failed"
+        end if
+
+        event = wait(10000, ut.GetPort())
+        if type(event) = "roUrlEvent"
+            if event.GetResponseCode() = 200
+                json = ParseJson(event.GetString())
+                if json <> invalid
+                    m.top.result = json
+                else
+                    print "=== Invalid JSON ==="
+                    print event.GetString()
+                end if
+            else
+                print "Unsuccessful " ; m.top.url
+                ? event
+            end if
+        else
+            print "Event type: " + type(event)
+        end if
+    end sub
+ 
+    ]]>
+  </script>
+ 
+</component>

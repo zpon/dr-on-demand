@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<component name="PlayerScreen" extends="Group" initialFocus="video">
+    <interface>
+        <field id="card" type="assocarray" onChange="cardSet" />
+        <field id="done" type="bool" />
+    </interface>
+
+    <script type = "text/brightscript" uri = "pkg:/source/utils.brs" />
+    <script type = "text/brightscript" uri = "pkg:/source/decrypt.brs" />
+    <script type="text/brightscript">
+        <![CDATA[
+			Sub init()
+				m.top.setFocus(true)
+			    m.video = m.top.findNode("video")
+                m.FetcherTask = createObject("roSGNode", "FetcherTask")
+
+                m.top.done = false
+
+                m.video.ObserveField("state", "stateChange")
+            End Sub
+
+            Sub stateChange()
+                ? m.video.state
+                if m.video.state = "finished"
+                    m.top.done = true
+                end if
+            end Sub
+
+            Sub rowListContentChanged()
+                print "ContentUpdate"
+                m.RowList.content = m.LoadTask.content
+			end Sub
+            
+            Sub cardSet()
+                print "cardSet"
+                ? m.top.card
+                m.FetcherTask.url = m.top.card.PrimaryAsset.Uri
+                m.FetcherTask.observeField("result", "play")
+                m.FetcherTask.control = "RUN"
+            end Sub
+
+            Sub play()
+                print "play"
+                ? m.FetcherTask.result
+                link = decrypt(m.FetcherTask.result.Links[1].EncryptedUri, m.global.seed)
+                ? link
+                item = createObject("RoSGNode", "ContentNode")
+                item.Title = m.top.card.SeriesTitle + " - " + m.top.card.Title
+                item.Description = m.top.card.Subtitle
+                item.HDPosterUrl = m.top.card.PrimaryImageUri
+                item.Url = link
+                item.streamFormat = m.FetcherTask.result.Links[1].Target
+                if m.FetcherTask.result.DoesExist("SubtitlesList") and m.FetcherTask.result.SubtitlesList.Count() > 0
+                    item.SubtitleUrl = m.FetcherTask.result.SubtitlesList[0].Uri
+                    item.SubtitleTracks = [{Description: m.FetcherTask.result.SubtitlesList[0].Language}]
+                end if
+                ? item
+                m.video.content = item
+                m.video.control = "play"
+
+                m.video.SetFocus(true)
+            end Sub
+            ]]>
+    </script>
+    <children>
+        <Video
+			id = "video"
+			translation = "[0,0]"
+			width = "1920"
+			height = "1080"
+			enableUI = "true"
+			loop = "false"
+		/>
+        <RowList
+            id="rowList"
+            translation="[231,100]"
+            itemComponentName="PosterItem"
+            itemSize="[1458,254]"
+            numRows="5"
+            rowItemSize="[[1220,591],[351,197]]"
+	    	rowHeights="[648,254]"
+            rowItemSpacing="[[54,0],[18,0]]"
+            rowLabelOffset="[[0,8]]"
+            showRowLabel="[true]"
+            showRowCounter="[true]" 
+            focusXOffset="[119,0]"
+	    	rowFocusAnimationStyle = "floatingFocus"/> 
+    </children>
+</component>
+

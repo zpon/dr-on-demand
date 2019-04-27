@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<component name="ButtonItem" extends="Group">
+    <interface>
+        <field id="width"       type="float" onChange="updateLayout"/> 
+        <field id="height"      type="float" onChange="updateLayout"/> 
+        <field id="itemContent" type="node" onChange="itemContentChanged" />
+    </interface>
+    
+    <script type="text/brightscript">
+        <![CDATA[
+            Sub Init()
+                m.poster = m.top.findNode("poster")
+                m.posterLabel = m.top.findNode("posterLabel")
+                m.Label = m.top.findNode("label")
+                'm.Background = m.top.findNode("background")
+            End Sub
+            Sub itemContentChanged()
+                m.poster.uri = m.top.itemContent.HDPOSTERURL
+                m.posterLabel.text = m.top.itemContent.title
+                m.Label.text = m.top.itemContent.Description
+                updateLayout()
+            End Sub
+            Sub updateLayout()
+                if m.poster = invalid
+                    m.poster = m.top.findNode("poster")
+                end if
+                if m.Label = invalid
+                    m.Label = m.top.findNode("label")
+                end if
+                If m.top.height > 0 And m.top.width > 0 Then
+                    m.poster.width  = m.top.width
+                    m.poster.height = m.top.height
+                    m.posterLabel.width = m.top.width
+                    m.posterLabel.height = m.top.height
+
+                    'm.Background.width = m.top.width
+                    if m.top.height < 250
+                        'm.Background.height = 40
+                        m.label.font = "font:SmallSystemFont"
+                    end if
+                    'm.Background.translation = [ 0, m.poster.height+10 ]
+                    m.Label.translation = [ 0, m.poster.height+10 ]
+                    m.Label.width = m.top.width
+                    'm.Label.height = m.Background.height
+                End If
+            End Sub]]>
+    </script>
+    <children>
+        <Poster id="poster">
+            <Label
+                id="posterLabel"
+                vertAlign="center"
+                horizAlign="center"
+                font="font:LargeSystemFont"
+                />
+        </Poster>
+        <label id="label" 
+            horizAlign = "center"
+            vertAlign = "center"
+            font = "font:MediumBoldSystemFont"
+            />
+        
+    </children>
+</component>
+

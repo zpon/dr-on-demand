@@ -1,0 +1,14 @@
+title=DR on Demand
+subtitle=Watch DR on demand content
+major_version=1
+minor_version=2
+build_version=00002
+mm_icon_focus_hd=pkg:/images/multi-channel-splash-FHD.png
+mm_icon_side_hd=pkg:/images/multi-channel-splash-FHD.png
+mm_icon_focus_sd=pkg:/images/multi-channel-splash-FHD.png
+mm_icon_side_sd=pkg:/images/multi-channel-splash-FHD.png
+splash_screen_sd=pkg:/images/multi-channel-splash-FHD.png
+splash_screen_hd=pkg:/images/multi-channel-splash-FHD.png
+splash_color=#808080
+splash_min_time=0
+ui_resolutions=fhd

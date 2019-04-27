@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+ 
+<component name = "SaveTask" extends = "Task" >
+ 
+  <interface>
+    <field id = "data" type = "assocarray" />
+    <field id = "task" type = "string" />
+  </interface>
+ 
+  <script type = "text/brightscript" >
+    <![CDATA[
+ 
+    sub init()
+      print "Init SaveTask"
+      m.top.functionName = "store"
+      m.top.data = {}
+    end sub
+
+    sub store()
+      print "Store"
+      sec = CreateObject("roRegistrySection", "settings")
+      if m.top.task = "save":
+        for each item in m.top.data:
+            print "key: " + item
+            print "val: " + m.top.data[item]
+            sec.Write(item, m.top.data[item])
+        end for
+        sec.flush()
+        print "Save done"
+      else if m.top.task = "load":
+        data = {}
+        for each key in sec.GetKeyList():
+            print "read key: " key
+            if sec.Exists(key)
+                data[key] = sec.Read(key)
+                print "read val: " data[key]
+            else
+                print "Key does not exist"
+            end if
+        end for
+        m.top.data = data
+        print "Load done"
+        ? data
+      else
+        print "Unknown task: " + task
+      end if
+    end sub
+ 
+    ]]>
+  </script>
+ 
+</component>

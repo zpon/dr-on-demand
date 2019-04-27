@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<component name="PosterItem" extends="Group">
+    <interface>
+        <field id="width"       type="float" onChange="updateLayout"/> 
+        <field id="height"      type="float" onChange="updateLayout"/> 
+        <field id="itemContent" type="node" onChange="itemContentChanged" />
+    </interface>
+    
+    <script type="text/brightscript">
+        <![CDATA[
+            Sub Init()
+                m.Poster = m.top.findNode("poster")
+                m.Label = m.top.findNode("label")
+                m.Background = m.top.findNode("background")
+            End Sub
+            Sub itemContentChanged()
+                m.Poster.uri = m.top.itemContent.HDPOSTERURL
+                m.Label.text = m.top.itemContent.title
+                updateLayout()
+            End Sub
+            Sub updateLayout()
+                if m.Poster = invalid
+                    m.Poster = m.top.findNode("poster")
+                end if
+                if m.Label = invalid
+                    m.Label = m.top.findNode("label")
+                end if
+                If m.top.height > 0 And m.top.width > 0 Then
+                    m.Poster.width  = m.top.width
+                    m.Poster.height = m.top.height
+
+                    m.Background.width = m.top.width
+                    if m.top.height < 250
+                        m.Background.height = 40
+                        m.label.font = "font:SmallSystemFont"
+                    end if
+                    m.Background.translation = [ 0, m.Poster.height+10 ]
+                    m.Label.width = m.top.width
+                    m.Label.height = m.Background.height
+                End If
+            End Sub]]>
+    </script>
+    <children>
+        <Poster id="poster">
+        </Poster>
+        <Rectangle 
+            id = "background" 
+            translation = "[ 0, 244 ]" 
+            width = "512" 
+            height = "60" 
+            color = "#00000000"
+            blendingEnabled = "true" >
+            <label id="label" 
+                horizAlign = "center"
+                vertAlign = "center"
+                font = "font:MediumBoldSystemFont"
+                />
+        </Rectangle>
+        
+    </children>
+</component>
+

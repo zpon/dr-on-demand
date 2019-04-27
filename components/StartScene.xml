@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<component name="StartScene" extends="Scene" initialFocus="rowList">
+    <script type = "text/brightscript" uri = "pkg:/source/utils.brs" />
+    <script type = "text/brightscript" uri = "pkg:/source/decrypt.brs" />
+    <script type="text/brightscript">
+        <![CDATA[
+			Sub init()
+                print "StartScene.xml init"
+                m.global.settings = {}
+                m.top.setFocus(true)
+                m.RowList = m.top.findNode("rowList")
+
+                m.FetcherTask = createObject("roSGNode", "FetcherTask")
+                m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/page/tv/front"
+                m.FetcherTask.observeField("result", "frontLoaded")
+                m.FetcherTask.control = "RUN"
+            End Sub
+
+            sub dataLoaded()
+                print "Data loaded"
+                success = false
+                if m.SaveTask.data.DoesExist("seed") and m.SaveTask.data.seed <> ""
+                    m.global.seed = m.SaveTask.data.seed
+                    res = decrypt("0100000320ec19f8bfd2f4968a91982a14ba6e405476105a6160cb62b94ded4d1f47836402d0d837fb378e874d1b20f6680a9de56c520a2ef59b98ea7d120bc94453305cfce057ad1df24e15f646670b2842c0bbf5dd61c3377c9f98bad371ed70e5a03aee51cab6af8c5f624d4aac25bb910cee3ede05c183019adc8255c796d2843ecfc5ffb14ffcc9966527016c8a9145fb1a83ba919199587b308a940b6270cd4c1c03795b5bb464c17d251a223aa93a3693a3d701baf2af934a6cbb9bb9e0a22a1d9adcb501982854c42e443435e7e66606be526033ae70595d9bf683f5eb0b37dbafb98d20b228b4a7a15bb1377119013ac25155a067699804e1161b3ad8c3143a1cef8602ba93b992f36894daec18a43e4ede9fcc753db2dc373cb9755d0f941356c430c737c9da05082a20102b570388eaea78522c86b2f47150bdc5aff8984932bb7ca22cb872d6e5751b2f31e27456f78dbb3624469e9f9884ce6f6136ea5f1ee69efd6627b0ce954d15579f5e50c80db66e229b3520883e5f42291c3697a699daed4cb642367fcec3b7df82f459504176fa3a3dd81e8db4a26e6ae20d138085", m.global.seed)
+                    print "Result:"
+                    print res
+                    if res <> ""
+                        success = true
+                        print "succ"
+                    else
+                        print "fail"
+                    end if
+                end if
+
+                if success = false
+                    keyboarddialog = createObject("roSGNode", "KeyboardDialog")
+                    keyboarddialog.backgroundUri = "pkg:/images/rsgde_dlg_bg_hd.9.png"
+                    keyboarddialog.title = "Indtast DR token"
+                    keyboarddialog.buttons = ["Gem"]
+                    keyboarddialog.observeField("buttonSelected", "onKeyboardButtonSelected")
+                    keyboarddialog.text = m.global.seed
+                    m.top.dialog = keyboarddialog
+                    m.global.seed = ""
+                end if
+            end sub
+
+            sub onKeyboardButtonSelected()
+                if m.top.dialog.buttonSelected = 0 then
+                    m.SaveTask.task = "save"
+                    m.SaveTask.data = {seed : m.top.dialog.text}
+                    m.SaveTask.Control = "RUN"
+                    m.top.dialog.close = true
+                end if
+            end sub
+
+            sub listItemSelected()
+                selectedItem = m.RowList.rowItemSelected[1]
+                rowItem = m.RowList.rowItemSelected[0]
+                colItem = m.RowList.rowItemSelected[1]
+                print "-- selected item "; rowItem; " "; colItem
+
+                if (rowItem >= 0) and (rowItem < m.programCards.Count()) and colItem >= 0 and colItem < m.programCards[rowItem].Count()
+                    m.RowList.visible = false
+                    
+                    obj = m.programCards.GetEntry(rowItem).GetEntry(colItem)
+                    if obj.type = "ProgramCard"
+                        print obj.type
+                        m.CurrentScreen = CreateObject("RoSGNode", "PlayerScreen")
+                        m.CurrentScreen.card = obj
+                    else if obj.type = "letter"
+                        print "Letter type " + m.FetcherTask.control
+                        m.CurrentScreen = CreateObject("RoSGNode", "ListScreen")
+                        m.CurrentScreen.obj = obj
+                    else
+                        print "Wrong type!"
+                        return
+                    end if
+
+                    m.CurrentScreen.id = "CURRENT_TEST"
+                    m.top.AppendChild(m.CurrentScreen)
+                    m.CurrentScreen.SetFocus(true)
+                end if
+            end sub
+
+            function onKeyEvent(key as String, press as Boolean) as Boolean
+                print "in StartScene.xml onKeyEvent ";key;" "; press
+                if press then
+                    if key = "back"
+                        if not (m.CurrentScreen = invalid)
+                            print "CLEANING UP m.CurrentScreen"
+                            m.top.RemoveChild(m.CurrentScreen)
+                            m.CurrentScreen = invalid
+
+                            m.RowList.visible = true
+                            m.RowList.SetFocus(true)
+
+                            return true
+                        end if
+                    else if key = "home"
+                        m.top.RemoveChild(m.CurrentScreen)
+                        m.CurrentScreen = invalid
+                    end if
+
+                end if
+                return false
+            end function
+
+            sub addProgramCard(items as object, title as string) as object
+                row = createObject("RoSGNode","ContentNode")
+                row.title = title
+                cards = []
+                for each item in items
+                    meta = {}
+                    meta.description = item.SeriesTitle + " - " + item.Title
+                    meta.hdBackgroundImageUrl = item.PrimaryImageUri
+                    meta.HDPosterUrl = item.PrimaryImageUri
+                    node = createObject("RoSGNode","ContentNode")
+                    node.SetFields(meta)
+                    row.appendChild(node)
+                    cards.push(item)
+                end for
+                m.programCards.Push(cards)
+
+                return row
+            end sub
+
+            sub addLetters(alphabet as object, startIdx as Integer, stopIdx as Integer) as object
+                row = createObject("RoSGNode","ContentNode")
+                row.title = "Programmer " + UCase(alphabet[startIdx]) + " - " + UCase(alphabet[stopIdx])
+                cards = []
+                'for each item in items
+                i = startIdx
+                while i <= stopIdx
+                    meta = {}
+                    meta.description = "Programmer med " + UCase(alphabet[i])
+                    meta.title = UCase(alphabet[i])
+                    'meta.hdBackgroundImageUrl = "pkg:/images/buttons/l_" + alphabet[i] + ".png"
+                    meta.HDPosterUrl = "pkg://images/button_bg.png"
+                    node = createObject("RoSGNode", "ContentNode")
+                    node.SetFields(meta)
+                    row.appendChild(node)
+                    item = {}
+                    item.type = "letter"
+                    item.letter = alphabet[i]
+                    cards.push(item)
+                    i++
+                end while
+                'end for
+                m.programCards.Push(cards)
+
+                return row
+            end sub
+
+            sub frontLoaded()
+                m.testCard = m.FetcherTask.result.TopSpots.Items[0]
+                m.SaveTask = createObject("roSGNode", "SaveTask")
+                m.SaveTask.task = "load"
+                m.SaveTask.observeField("data", "dataLoaded")
+                m.SaveTask.control = "RUN"
+
+                m.testComponents = createObject("RoArray", 3, true)
+                m.programCards = []
+
+                listContent = createObject("RoSGNode", "ContentNode")
+                row = addProgramCard(m.FetcherTask.result.TopSpots.Items, "Top indhold")
+                listContent.appendChild(row)
+
+                row = addProgramCard(m.FetcherTask.result.LastChance.Items, "Sidste chance")
+                listContent.appendChild(row)
+
+                row = addProgramCard(m.FetcherTask.result.News.Items, "Nyheder")
+                listContent.appendChild(row)
+
+                listContent = loadAlphabet(listContent)
+
+                m.RowList.content = listContent
+                print "TestComponents"; m.testComponents
+
+                m.RowList.ObserveField("itemSelected", "listItemSelected")
+
+                ' set focus on the Scene (which will set focus on the initialFocus node)
+                print "SETTING THE FOCUS"
+                m.top.setFocus(true)
+                print "AFTER SETTING THE FOCUS"
+            end sub
+
+            sub loadAlphabet(listContent as object) as object
+                alphabet = ["a", "b", "c", "d", "e", ' 4
+                            "f", "g", "h", "i", "j", ' 9
+                            "k", "l", "m", "n", "o", ' 14
+                            "p", "q", "r", "s", "t", ' 19
+                            "u", "v", "w", "x", "y", ' 24
+                            "z", "æ", "ø", "å"] ' 28
+                row = addLetters(alphabet, 0, 4) ' a-e
+                listContent.appendChild(row)
+                row = addLetters(alphabet, 5, 9) ' f-j
+                listContent.appendChild(row)
+                row = addLetters(alphabet, 10, 14) ' k-o
+                listContent.appendChild(row)
+                row = addLetters(alphabet, 15, 19) ' p-t
+                listContent.appendChild(row)
+                row = addLetters(alphabet, 20, 24) ' u-y
+                listContent.appendChild(row)
+                row = addLetters(alphabet, 25, 28) ' z-å
+                listContent.appendChild(row)
+
+                return listContent
+            end sub
+
+            Sub rowListContentChanged()
+                'print "ContentUpdate"
+                'm.RowList.content = m.LoadTask.content
+            end Sub]]>
+    </script>
+    <children>
+        <RowList
+            id="rowList"
+            translation="[0,100]"
+            itemComponentName="ButtonItem"
+            itemSize="[1920,254]"
+            numRows="5"
+            rowItemSize="[[1220,591],[351,197]]"
+            rowHeights="[648,254]"
+            rowItemSpacing="[[54,0],[18,0]]"
+            itemSpacing="[100,70]"
+            focusXOffset="[350,47]"
+            rowLabelOffset="[[47,8]]"
+            showRowLabel="[true]"
+            showRowCounter="[true]" 
+            rowFocusAnimationStyle = "floatingFocus"/> 
+    </children>
+</component>

@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<component name="SeasonScreen" extends="Group" initialFocus="list">
+
+    <interface>
+        <field id = "obj" type = "assocarray" onChange="objSet" />
+    </interface>
+
+    <script type = "text/brightscript" uri = "pkg:/source/utils.brs" />
+    <script type="text/brightscript">
+        <![CDATA[
+            Sub init()
+                m.top.setFocus(true)
+                m.list = m.top.findNode("list")
+                m.group = m.top.findNode("group")
+                m.poster = m.top.findNode("poster")
+                m.labelTitle = m.top.findNode("labelTitle")
+                m.labelEntries = m.top.findNode("labelEntries")
+                m.decriptionLabel = m.top.findNode("decriptionLabel")
+                m.list.content = createObject("RoSGNode", "ContentNode")
+                ' Download offset
+                m.offset = 0
+                ' Downloaded episodes to be displayed
+                m.episodes = []
+
+                m.list.ObserveField("itemSelected", "listItemSelected")
+                m.list.ObserveField("itemFocused", "listItemFocused")
+            End Sub
+
+            sub listItemSelected()
+                print "Item Selected"
+                selectedItem = m.list.itemSelected
+                print "-- selected item "; selectedItem
+
+                if (selectedItem >= 0) and (selectedItem < m.episodes.Count())
+                    m.list.visible = false
+                    m.group.visible = false
+
+                    obj = m.episodes.GetEntry(selectedItem)
+                    print obj.type
+                    m.CurrentScreen = CreateObject("RoSGNode", "PlayerScreen")
+                    m.CurrentScreen.ObserveField("done", "videoDone")
+                    m.CurrentScreen.card = obj
+
+                    m.CurrentScreen.id = "CURRENT_TEST"
+                    m.top.AppendChild(m.CurrentScreen)
+                    m.CurrentScreen.SetFocus(true)
+                end if
+            end sub
+
+            Sub videoDone()
+                if not (m.CurrentScreen = invalid)
+                    print "CLEANING UP m.CurrentScreen"
+                    m.top.RemoveChild(m.CurrentScreen)
+                    m.CurrentScreen = invalid
+
+                    m.list.visible = true
+                    m.group.visible = true
+                    m.list.SetFocus(true)
+                end if
+            end Sub
+
+            sub listItemFocused()
+                focusedItem = m.list.itemFocused
+                if focusedItem >= 0 and focusedItem < m.episodes.Count()
+                    dt = m.episodes[focusedItem].datetime
+                    metastr = ""
+                    if dt <> invalid
+                        metastr = dt.GetDayOfMonth().ToStr() + "/" + dt.GetMonth().ToStr() + "-" + dt.GetYear().ToStr()
+                    end if
+                    if m.episodes[focusedItem].DoesExist("PrimaryAsset") and m.episodes[focusedItem].PrimaryAsset.DoesExist("DurationInMilliseconds")
+                        if metastr <> ""
+                            metastr += " - "
+                        end if
+                        metastr += MillisecondsToString(m.episodes[focusedItem].PrimaryAsset.DurationInMilliseconds)
+                    end if
+                    if focusedItem >= 0 and focusedItem < m.episodes.Count() and m.episodes[focusedItem].DoesExist("Description")
+                        m.decriptionLabel.text = metastr
+                        if metastr <> ""
+                            m.decriptionLabel.text += Chr(10)
+                        end if
+                        m.decriptionLabel.text += m.episodes[focusedItem].Description
+                    else
+                        m.decriptionLabel.text = metastr
+                    end if
+                end if
+            end sub
+
+            function onKeyEvent(key as String, press as Boolean) as Boolean
+                print "in SeasonScreen.xml onKeyEvent ";key;" "; press
+                if press then
+                    if key = "back"
+                        if not (m.CurrentScreen = invalid)
+                            print "CLEANING UP m.CurrentScreen"
+                            m.top.RemoveChild(m.CurrentScreen)
+                            m.CurrentScreen = invalid
+
+                            m.list.visible = true
+                            m.group.visible = true
+                            m.list.SetFocus(true)
+
+                            return true
+                        end if
+                    else if key = "home"
+                        m.top.RemoveChild(m.CurrentScreen)
+                        m.CurrentScreen = invalid
+                    end if
+                end if
+                return false
+            end function
+
+            Sub objSet()
+                print "Obj set"
+                if m.top.obj.type = "Bundle"
+                    m.poster.uri = m.top.obj.PrimaryImageUri
+                    if m.top.obj.DoesExist("SeasonNumber") and m.top.obj.DoesExist("Episodes") and m.top.obj.Episodes.Items.Count() > 0:
+                        m.labelTitle.text = m.top.obj.Episodes.Items[0].SeriesTitle + " - Sæson " + m.top.obj.SeasonNumber.ToStr()
+                    else
+                        m.labelTitle.text = m.top.obj.Title
+                    end if
+                    loadSeasonData()
+                else
+                    print "Wrong type: " + obj.type
+                end if
+            end Sub
+
+            Sub loadSeasonData()
+                m.FetcherTask = createObject("roSGNode", "FetcherTask")
+                m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/view/season?id=" + m.top.obj.Slug + "&limit=20&offset=" + m.offset.ToStr()
+                m.FetcherTask.observeField("result", "seasonDataLoaded")
+                m.FetcherTask.control = "RUN"
+            end Sub
+
+            Sub seasonDataLoaded()
+                ? m.FetcherTask.result.Items
+                items = m.FetcherTask.result.Items
+                for i = 0 To items.Count() - 1 Step 1
+                    item = items[i]
+                    if item.DoesExist("PrimaryBroadcastStartTime")
+                        dt = createObject("roDateTime")
+                        dt.FromISO8601String(item.PrimaryBroadcastStartTime)
+                        dt.ToLocalTime()
+                        item.datetime = dt
+                        item.unixtime = dt.AsSeconds()
+                    end if
+                    items[i] = item
+                end for
+                m.episodes.append(items)
+
+                m.offset += items.count()
+                print "Offset: " ; m.offset
+                if m.offset < m.FetcherTask.result.TotalSize
+                    print "Load more"
+                    loadSeasonData()
+                else
+                    m.episodes.SortBy("unixtime", "r")
+                    print "Nothing left to load"
+                    m.labelEntries.text = "Episoder: " + m.episodes.Count().ToStr()
+                    for each item in m.episodes
+                        node = m.list.content.createChild("ContentNode")
+                        if item.DoesExist("datetime")
+                            dt = item.datetime
+                            node.title = item.Title + " (" + dt.GetDayOfMonth().ToStr() + "/" + dt.GetMonth().ToStr() + "-" + dt.GetYear().ToStr() + ")"
+                        else
+                            node.title = item.Title
+                        end if
+                    end for
+                end if
+            end Sub
+        ]]>
+    </script>
+    <children>
+        <LayoutGroup
+            id="group"
+            translation="[0, 64]"
+            layoutDirection="horiz"
+            itemSpacings="[320, 32]"
+            addItemSpacingAfterChild="false"
+            >
+            <Poster
+                id="poster"
+                width="640"
+                height="360"
+                loadDisplayMode="scaleToZoom"
+                />
+            <LayoutGroup
+                layoutDirection="vert"
+                translation="[32,32]"
+                itemSpacings="[12]"
+                addItemSpacingAfterChild="true"
+                >
+                <Label
+                    id="labelTitle"
+                    font="font:LargeSystemFont"
+                    />
+                <Label
+                    id="labelEntries"
+                    />
+            </LayoutGroup>
+        </LayoutGroup>
+        <LayoutGroup
+            id="labelGroup"
+            translation="[100, 488]"
+            layoutDirection="horiz"
+            itemSpacings="[0, 32]"
+            addItemSpacingAfterChild="false"
+            vertAlignment="custom"
+            >
+            <!-- There is a 68px difference between itemSize width and the expected width -->
+            <LabelList 
+                id="list"
+                itemSize="[792, 72]"
+                itemSpacing="[0, 15]"
+                focusRow="0" >
+            </LabelList>
+            <Label
+                id="decriptionLabel"
+                translation="[0, 0]"
+                height="592"
+                width="828"
+                wrap="true"
+                />
+        </LayoutGroup>
+    </children>
+</component>
