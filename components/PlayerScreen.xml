@@ -4,7 +4,11 @@
 <component name="PlayerScreen" extends="Group" initialFocus="video">
     <interface>
         <field id="card" type="assocarray" onChange="cardSet" />
-        <field id="done" type="bool" />
+        <field id="done" type="bool" alwaysNotify="true" />
+        <field id="progress" type="integer" alwaysNotify="true" />
+        <field id="seek" type="integer" /> <!-- Must be set before card -->
+        <!-- <field id="doStop" type="bool" onChange="stopPlayback" /> -->
+        <function name="stopPlayback" />
     </interface>
 
     <script type = "text/brightscript" uri = "pkg:/source/utils.brs" />
@@ -17,16 +21,46 @@
                 m.FetcherTask = createObject("roSGNode", "FetcherTask")
 
                 m.top.done = false
+                m.top.progress = 0
+                ' m.top.doStop = false
 
                 m.video.ObserveField("state", "stateChange")
             End Sub
 
             Sub stateChange()
-                ? m.video.state
-                if m.video.state = "finished"
-                    m.top.done = true
+                print "State: " + m.video.state
+                m.top.progress = m.video.position
+                ' if m.video.state = "finished"
+                '     m.top.progress = 100
+                '     m.top.done = true
+                ' else if m.video.state <> "none"
+                '     m.top.progress = min(m.video.position / max(1, m.video.duration) * 100, 100)
+                ' else
+                '     print "None state"
+                ' end if
+
+                print "Progress: " + m.top.progress.ToStr()
+                print "Urn: " + m.top.card.Urn
+                if m.global.DoesExist("savetask") and m.global.savetask <> Invalid
+                    ' itemSelected = m.list.itemSelected
+                    obj = m.top.card
+                    print "Update progress. Urn: " + obj.Urn
+                    if m.global.savetask.data.DoesExist(obj.Urn) and m.global.savetask.data[obj.Urn] = m.top.progress.ToStr() or m.top.progress = 0
+                        print "Progress has not changed or 0, ignoring"
+                    else
+                        d = m.global.savetask.data
+                        d.AddReplace(obj.Urn, m.top.progress.ToStr())
+                        m.global.savetask.data = d
+                        m.global.savetask.task = "save"
+                        m.global.savetask.Control = "RUN"
+                    end if
                 end if
             end Sub
+
+            Function stopPlayback()
+                print "Stop playback"
+                m.video.control = "stop"
+            end Function
 
             Sub rowListContentChanged()
                 print "ContentUpdate"
@@ -44,21 +78,46 @@
             Sub play()
                 print "play"
                 ? m.FetcherTask.result
-                link = decrypt(m.FetcherTask.result.Links[1].EncryptedUri, m.global.seed)
-                ? link
                 item = createObject("RoSGNode", "ContentNode")
+
+                ' Try to find HLS stream
+                for i = 0 to m.FetcherTask.result.Links.Count() - 1
+                    if m.FetcherTask.result.Links[i].Target = "HLS"
+                        item.Url = decrypt(m.FetcherTask.result.Links[i].EncryptedUri, m.global.seed)
+                        item.streamFormat = m.FetcherTask.result.Links[i].Target
+                    end if
+                end for
+                ' Fallback to what ever was first in the list
+                if Len(item.Url) = 0 and m.FetcherTask.result.Links.Count() > 0
+                    item.Url = decrypt(m.FetcherTask.result.Links[0].EncryptedUri, m.global.seed)
+                    item.streamFormat = m.FetcherTask.result.Links[0].Target
+                end if
+
+                ? item.Url
                 item.Title = m.top.card.SeriesTitle + " - " + m.top.card.Title
                 item.Description = m.top.card.Subtitle
                 item.HDPosterUrl = m.top.card.PrimaryImageUri
-                item.Url = link
-                item.streamFormat = m.FetcherTask.result.Links[1].Target
-                if m.FetcherTask.result.DoesExist("SubtitlesList") and m.FetcherTask.result.SubtitlesList.Count() > 0
-                    item.SubtitleUrl = m.FetcherTask.result.SubtitlesList[0].Uri
-                    item.SubtitleTracks = [{Description: m.FetcherTask.result.SubtitlesList[0].Language}]
-                end if
+                'item.Url = link
+                'item.SubtitleUrl = ""
+                'subTracks = []
+                'if m.FetcherTask.result.DoesExist("SubtitlesList")
+                '    ? m.FetcherTask.result.SubtitlesList
+                '    for i = 0 to m.FetcherTask.result.SubtitlesList.Count() - 1
+                '    'for each sub in m.FetcherTask.result.SubtitlesList
+                '        if Len(item.SubtitleUrl) = 0
+                '            item.SubtitleUrl = m.FetcherTask.result.SubtitlesList[i].Uri
+                '        else
+                '            item.SubtitleUrl += ";" + m.FetcherTask.result.SubtitlesList[i].Uri
+                '        end if
+                '        subTracks.Push({Language: m.FetcherTask.result.SubtitlesList[i].Language, Description: m.FetcherTask.result.SubtitlesList[i].Type})
+                '    end for
+                'end if
+                'item.SubtitleTracks = subTracks
                 ? item
                 m.video.content = item
                 m.video.control = "play"
+                print "Seek to: " + m.top.seek.ToStr()
+                m.video.seek = m.top.seek
 
                 m.video.SetFocus(true)
             end Sub

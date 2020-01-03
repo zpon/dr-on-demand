@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<component name="SeasonScreen" extends="Group" initialFocus="list">
+<component name="EpisodeScreen" extends="Group" initialFocus="list">
 
     <interface>
         <field id = "obj" type = "assocarray" onChange="objSet" />
@@ -10,6 +10,7 @@
     <script type="text/brightscript">
         <![CDATA[
             Sub init()
+                print "Episode init"
                 m.top.setFocus(true)
                 m.list = m.top.findNode("list")
                 m.group = m.top.findNode("group")
@@ -40,7 +41,7 @@
                     print obj.type
                     m.CurrentScreen = CreateObject("RoSGNode", "PlayerScreen")
                     m.CurrentScreen.ObserveField("done", "videoDone")
-                    m.CurrentScreen.ObserveField("progress", "videoProgress")
+                    stop
                     if obj.DoesExist("Urn") and m.global.savetask.data.DoesExist(obj.Urn)
                         m.CurrentScreen.seek = m.global.savetask.data[obj.Urn].ToInt()
                     else
@@ -64,24 +65,6 @@
                     m.group.visible = true
                     m.list.SetFocus(true)
                 end if
-            end Sub
-
-            Sub videoProgress()
-                ' print "Progress: " + m.CurrentScreen.progress.ToStr()
-                ' if m.global.DoesExist("savetask") and m.global.savetask <> Invalid
-                '     itemSelected = m.list.itemSelected
-                '     obj = m.episodes.GetEntry(itemSelected)
-                '     print "Update progress. Urn: " + obj.Urn
-                '     if m.global.savetask.data.DoesExist(obj.Urn) and m.global.savetask.data[obj.Urn] = m.CurrentScreen.progress.ToStr()
-                '         print "Progress has not changed, ignoring"
-                '     else
-                '         d = m.global.savetask.data
-                '         d.AddReplace(obj.Urn, m.CurrentScreen.progress.ToStr())
-                '         m.global.savetask.data = d
-                '         m.global.savetask.task = "save"
-                '         m.global.savetask.Control = "RUN"
-                '     end if
-                ' end if
             end Sub
 
             sub listItemFocused()
@@ -147,8 +130,8 @@
             end function
 
             Sub objSet()
-                print "Obj set " + m.top.obj.type
-                if m.top.obj.type = "Bundle" or m.top.obj.type = "ProgramCard"
+                print "Obj set"
+                if m.top.obj.type = "ProgramCard"
                     m.poster.uri = m.top.obj.PrimaryImageUri
                     if m.top.obj.DoesExist("SeasonNumber") and m.top.obj.DoesExist("Episodes") and m.top.obj.Episodes.Items.Count() > 0:
                         m.labelTitle.text = m.top.obj.Episodes.Items[0].SeriesTitle + " - Sæson " + m.top.obj.SeasonNumber.ToStr()
@@ -163,15 +146,7 @@
 
             Sub loadSeasonData()
                 m.FetcherTask = createObject("roSGNode", "FetcherTask")
-                if m.top.obj.type = "ProgramCard"
-                    m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/view/season?id=" + m.top.obj.SeasonUrn + "&limit=20&offset=" + m.offset.ToStr()
-                else if m.top.obj.type = "Bundle"
-                    if m.top.obj.BundleType = "Season"
-                        m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/view/season?id=" + m.top.obj.Slug + "&limit=20&offset=" + m.offset.ToStr()
-                    else
-                        m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/" + m.top.obj.Slug + "?limit=20&offset=" + m.offset.ToStr()
-                    end if
-                end if
+                m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/view/season?id=" + m.top.obj.SeasonSlug + "&limit=20&offset=" + m.offset.ToStr()
                 m.FetcherTask.observeField("result", "seasonDataLoaded")
                 m.FetcherTask.control = "RUN"
             end Sub
@@ -179,9 +154,6 @@
             Sub seasonDataLoaded()
                 ? m.FetcherTask.result.Items
                 items = m.FetcherTask.result.Items
-                if items.Count() > 0 and items[0].DoesExist("SeasonNumber"):
-                    m.labelTitle.text = items[0].SeriesTitle + " - Sæson " + items[0].SeasonNumber.ToStr()
-                end if
                 for i = 0 To items.Count() - 1 Step 1
                     item = items[i]
                     if item.DoesExist("PrimaryBroadcastStartTime")

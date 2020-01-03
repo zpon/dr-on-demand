@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<component name="SearchScreen" extends="Group" initialFocus="list">
+
+    <interface>
+        <field id = "searchWord" type = "string" onChange="searchWordSet" />
+    </interface>
+
+    <script type="text/brightscript">
+        <![CDATA[
+            Sub init()
+                m.top.setFocus(true)
+                m.list = m.top.findNode("list")
+                m.list.content = createObject("RoSGNode", "ContentNode")
+                ' Download offset
+                m.offset = 0
+                ' Downloaded items to be displayed
+                m.items = []
+
+                m.list.ObserveField("itemSelected", "listItemSelected")
+            End Sub
+
+            sub listItemSelected()
+                print "Item Selected"
+                selectedItem = m.list.itemSelected
+                print "-- selected item "; selectedItem
+
+                if (selectedItem >= 0) and (selectedItem < m.items.Count())
+                    m.list.visible = false
+
+                    obj = m.items.GetEntry(selectedItem)
+                    print obj.type
+                    m.CurrentScreen = CreateObject("RoSGNode", "SeriesScreen")
+                    m.CurrentScreen.obj = obj
+
+                    m.CurrentScreen.id = "CURRENT_TEST"
+                    m.top.AppendChild(m.CurrentScreen)
+                    m.CurrentScreen.SetFocus(true)
+                end if
+            end sub
+
+            function onKeyEvent(key as String, press as Boolean) as Boolean
+                print "in testList.xml onKeyEvent ";key;" "; press
+                if press then
+                    if key = "back"
+                    if not (m.CurrentScreen = invalid)
+                        print "CLEANING UP m.CurrentScreen"
+                        m.top.RemoveChild(m.CurrentScreen)
+                        m.CurrentScreen = invalid
+
+                        m.list.visible = true
+                        m.list.SetFocus(true)
+
+                        return true
+                    end if
+                    else if key = "home"
+                        m.top.RemoveChild(m.CurrentScreen)
+                        m.CurrentScreen = invalid
+                    end if
+                end if
+                return false
+            end function
+
+            Sub searchWordSet()
+                print "Search word set: " + m.top.searchWord
+                m.FetcherTask = createObject("roSGNode", "FetcherTask")
+                m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/search/tv/programcards-with-asset/title/" + m.top.searchWord.EncodeUriComponent() + "?limit=40&offset=" + m.offset.ToStr()
+                ' m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/search/tv/programcards-latest-episode-with-asset/series-title-starts-with/" + m.top.obj.letter.EncodeUriComponent() +"?orderBy=title&limit=40&offset=" + m.offset.ToStr()
+                m.FetcherTask.observeField("result", "searchDataLoaded")
+                m.FetcherTask.control = "RUN"
+            end Sub
+
+            Sub searchDataLoaded()
+                'listContent = createObject("RoSGNode", "ContentNode")
+
+                for each item in m.FetcherTask.result.Items
+                    skip = false
+                    for each old in m.items
+                        if old.SeriesSlug = item.SeriesSlug
+                            skip = true
+                            Exit For
+                        end if
+                    end for
+                    if not skip
+                        m.items.Push(item)
+                    end if
+                end for
+
+                m.offset += m.FetcherTask.result.Items.count()
+                print "Offset: " ; m.offset
+                ' We don't load all results, it may be very many
+                ' if m.offset < m.FetcherTask.result.TotalSize
+                '     print "Load more"
+                '     loadLetterData()
+                ' else
+                    ' m.items.SortBy("SeriesTitle", "i")
+                    for each item in m.items
+                        node = m.list.content.createChild("ContentNode")
+                        node.title = item.SeriesTitle
+                    end for
+                    print "Nothing left to load"
+                ' end if
+            end Sub
+        ]]>
+    </script>
+    <children>
+        <LabelList 
+            id="list"
+            translation="[100, 32]"
+            itemSize="[1024, 72]"
+            itemSpacing="[15, 15]"
+            focusRow="0" >
+        </LabelList>
+    </children>
+</component>

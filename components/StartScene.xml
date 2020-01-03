@@ -15,6 +15,9 @@
                 m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/page/tv/front"
                 m.FetcherTask.observeField("result", "frontLoaded")
                 m.FetcherTask.control = "RUN"
+
+                m.SaveTask = createObject("roSGNode", "SaveTask")
+                m.global.addFields({savetask : m.SaveTask})
             End Sub
 
             sub dataLoaded()
@@ -54,6 +57,15 @@
                 end if
             end sub
 
+            sub doSearch()
+                m.CurrentScreen = CreateObject("RoSGNode", "SearchScreen")
+                m.searchWord = m.top.dialog.text
+                m.CurrentScreen.searchWord = m.searchWord
+                m.top.AppendChild(m.CurrentScreen)
+                m.CurrentScreen.SetFocus(true)
+                m.top.dialog.close = true
+            end sub
+
             sub listItemSelected()
                 selectedItem = m.RowList.rowItemSelected[1]
                 rowItem = m.RowList.rowItemSelected[0]
@@ -64,16 +76,26 @@
                     m.RowList.visible = false
                     
                     obj = m.programCards.GetEntry(rowItem).GetEntry(colItem)
-                    if obj.type = "ProgramCard"
+                    if obj.type = "ProgramCard" or obj.type = "Bundle"
                         print obj.type
-                        m.CurrentScreen = CreateObject("RoSGNode", "PlayerScreen")
-                        m.CurrentScreen.card = obj
+                        m.CurrentScreen = CreateObject("RoSGNode", "SeasonScreen")
+                        m.CurrentScreen.obj = obj
                     else if obj.type = "letter"
                         print "Letter type " + m.FetcherTask.control
                         m.CurrentScreen = CreateObject("RoSGNode", "ListScreen")
                         m.CurrentScreen.obj = obj
+                    else if obj.type = "search"
+                        print "Search"
+                        keyboarddialog = createObject("roSGNode", "KeyboardDialog")
+                        keyboarddialog.backgroundUri = "pkg:/images/rsgde_dlg_bg_hd.9.png"
+                        keyboarddialog.title = "Indtast søgeord"
+                        keyboarddialog.buttons = ["Søg"]
+                        keyboarddialog.observeField("buttonSelected", "doSearch")
+                        keyboarddialog.text = m.searchWord
+                        m.top.dialog = keyboarddialog
+                        return
                     else
-                        print "Wrong type!"
+                        print "Wrong type! " + obj.type
                         return
                     end if
 
@@ -88,6 +110,12 @@
                 if press then
                     if key = "back"
                         if not (m.CurrentScreen = invalid)
+                            rowItem = m.RowList.rowItemSelected[0]
+                            colItem = m.RowList.rowItemSelected[1]
+                            obj = m.programCards.GetEntry(rowItem).GetEntry(colItem)
+                            if obj.type = "ProgramCard"
+                                m.CurrentScreen.callFunc("stopPlayback")
+                            end if
                             print "CLEANING UP m.CurrentScreen"
                             m.top.RemoveChild(m.CurrentScreen)
                             m.CurrentScreen = invalid
@@ -112,7 +140,26 @@
                 cards = []
                 for each item in items
                     meta = {}
-                    meta.description = item.SeriesTitle + " - " + item.Title
+                    meta.description = item.Title 'GenerateTitle(item.SeriesTitle, item.Title)
+                    meta.hdBackgroundImageUrl = item.PrimaryImageUri
+                    meta.HDPosterUrl = item.PrimaryImageUri
+                    node = createObject("RoSGNode","ContentNode")
+                    node.SetFields(meta)
+                    row.appendChild(node)
+                    cards.push(item)
+                end for
+                m.programCards.Push(cards)
+
+                return row
+            end sub
+
+            sub addZone(zone as object) as object
+                row = createObject("RoSGNode","ContentNode")
+                row.title = zone.Title
+                cards = []
+                for each item in zone.Items
+                    meta = {}
+                    meta.description = item.Title
                     meta.hdBackgroundImageUrl = item.PrimaryImageUri
                     meta.HDPosterUrl = item.PrimaryImageUri
                     node = createObject("RoSGNode","ContentNode")
@@ -133,16 +180,29 @@
                 i = startIdx
                 while i <= stopIdx
                     meta = {}
-                    meta.description = "Programmer med " + UCase(alphabet[i])
+                    isLetter = true
+                    searchStr = alphabet[i] ' Find programs starting with this letter
+                    if alphabet[i].Len() = 1
+                        meta.description = "Programmer med " + UCase(alphabet[i])
+                    else if alphabet[i] = "0-9"
+                        searchStr = "0..9" ' This searches in ranges
+                        meta.description = "Programmer med " + UCase(alphabet[i])
+                    else
+                        isLetter = false
+                        meta.description = UCase(alphabet[i])
+                    end if
                     meta.title = UCase(alphabet[i])
-                    'meta.hdBackgroundImageUrl = "pkg:/images/buttons/l_" + alphabet[i] + ".png"
                     meta.HDPosterUrl = "pkg://images/button_bg.png"
                     node = createObject("RoSGNode", "ContentNode")
                     node.SetFields(meta)
                     row.appendChild(node)
                     item = {}
-                    item.type = "letter"
-                    item.letter = alphabet[i]
+                    if isLetter
+                        item.type = "letter"
+                        item.letter = searchStr
+                    else
+                        item.type = "search"
+                    end if
                     cards.push(item)
                     i++
                 end while
@@ -154,7 +214,6 @@
 
             sub frontLoaded()
                 m.testCard = m.FetcherTask.result.TopSpots.Items[0]
-                m.SaveTask = createObject("roSGNode", "SaveTask")
                 m.SaveTask.task = "load"
                 m.SaveTask.observeField("data", "dataLoaded")
                 m.SaveTask.control = "RUN"
@@ -163,13 +222,21 @@
                 m.programCards = []
 
                 listContent = createObject("RoSGNode", "ContentNode")
-                row = addProgramCard(m.FetcherTask.result.TopSpots.Items, "Top indhold")
+                ' No longer populated
+                ' row = addProgramCard(m.FetcherTask.result.TopSpots.Items, "Top indhold")
+                ' listContent.appendChild(row)
+
+                if m.FetcherTask.result.DoesExist("Zones1")
+                    for each zone in m.FetcherTask.result.Zones1
+                        row = addZone(zone)
+                        listContent.appendChild(row)
+                    end for
+                end if
+
+                row = addProgramCard(m.FetcherTask.result.News.Items, "Nyheder")
                 listContent.appendChild(row)
 
                 row = addProgramCard(m.FetcherTask.result.LastChance.Items, "Sidste chance")
-                listContent.appendChild(row)
-
-                row = addProgramCard(m.FetcherTask.result.News.Items, "Nyheder")
                 listContent.appendChild(row)
 
                 listContent = loadAlphabet(listContent)
@@ -191,7 +258,8 @@
                             "k", "l", "m", "n", "o", ' 14
                             "p", "q", "r", "s", "t", ' 19
                             "u", "v", "w", "x", "y", ' 24
-                            "z", "æ", "ø", "å"] ' 28
+                            "z", "æ", "ø", "å", "0-9", '29
+                            "Søg"] ' 30
                 row = addLetters(alphabet, 0, 4) ' a-e
                 listContent.appendChild(row)
                 row = addLetters(alphabet, 5, 9) ' f-j
@@ -202,7 +270,9 @@
                 listContent.appendChild(row)
                 row = addLetters(alphabet, 20, 24) ' u-y
                 listContent.appendChild(row)
-                row = addLetters(alphabet, 25, 28) ' z-å
+                row = addLetters(alphabet, 25, 29) ' z-å
+                listContent.appendChild(row)
+                row = addLetters(alphabet, 30, 30)
                 listContent.appendChild(row)
 
                 return listContent

@@ -3,7 +3,7 @@
 <component name = "SaveTask" extends = "Task" >
  
   <interface>
-    <field id = "data" type = "assocarray" />
+    <field id = "data" type = "assocarray" onChange="test" />
     <field id = "task" type = "string" />
   </interface>
  
@@ -14,6 +14,11 @@
       print "Init SaveTask"
       m.top.functionName = "store"
       m.top.data = {}
+    end sub
+
+    sub test()
+      print "Data changed:"
+      ? m.top.data
     end sub
 
     sub store()

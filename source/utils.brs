@@ -21,3 +21,27 @@ Sub MillisecondsToString(ms as integer) as string
 
     return str
 end Sub
+
+Sub min(a as integer, b as integer) as integer
+    if (a < b)
+        return a
+    else
+        return b
+    end if
+end Sub
+
+Sub max(a as integer, b as integer) as integer
+    if (a > b)
+        return a
+    else
+        return b
+    end if
+end Sub
+
+Sub GenerateTitle(seriesTitle as string, title as string) as string
+    if seriesTitle = title
+        return title
+    else
+        return seriesTitle + " - " + title
+    end if
+end Sub
