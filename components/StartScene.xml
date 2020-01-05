@@ -10,17 +10,86 @@
                 m.global.settings = {}
                 m.top.setFocus(true)
                 m.RowList = m.top.findNode("rowList")
+                m.last_seen_objs = []
 
-                m.FetcherTask = createObject("roSGNode", "FetcherTask")
-                m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/page/tv/front"
-                m.FetcherTask.observeField("result", "frontLoaded")
-                m.FetcherTask.control = "RUN"
+                if m.SaveTask = invalid
+                    m.SaveTask = createObject("roSGNode", "SaveTask")
+                    m.global.addFields({savetask : m.SaveTask})
 
-                m.SaveTask = createObject("roSGNode", "SaveTask")
-                m.global.addFields({savetask : m.SaveTask})
+                    m.SaveTask.task = "load"
+                    m.SaveTask.observeField("data", "dataLoaded")
+                    m.SaveTask.control = "RUN"
+                end if
             End Sub
 
+            sub lastLoaded()
+                Print "Loaded this:"
+                ? m.FetcherTask.result
+                foundItem = false
+                item = {}
+                meta = {}
+                if m.FetcherTask.result.DoesExist("Items") and m.FetcherTask.result["Items"].Count() > 0
+                    item = m.FetcherTask.result["Items"][0]
+                    meta.description = item.Title
+                    foundItem = true
+                else if m.FetcherTask.result.DoesExist("Type") and m.FetcherTask.result.Type = "ProgramCard"
+                    item = m.FetcherTask.result
+                    meta.description = item.Title
+                    foundItem = true
+                else
+                    print "Unknown type?"
+                    ? m.FetcherTask.result
+                end if
+                if foundItem = true
+                    meta.hdBackgroundImageUrl = item.PrimaryImageUri
+                    meta.HDPosterUrl = item.PrimaryImageUri
+                    node = createObject("RoSGNode","ContentNode")
+                    node.SetFields(meta)
+                    m.last_seen_row.appendChild(node)
+                    m.last_seen_objs.push(item)
+                    m.programCards[0].Push(item)
+                end if
+                loadLast()
+            end sub
+
+            sub loadLast()
+                Print "Load next " + m.last_array.Count().ToStr()
+                if m.last_array.Count() > 0
+                    item = m.last_array.pop().Split(":")
+                    if not item.Count() <= 3 and not item.Count >= 2
+                        print "Error loading item:"
+                        ? item
+                        loadLast()
+                    end if
+                    print "Type: " + item[0]
+                    if item[0] = "series"
+                        m.FetcherTask = createObject("roSGNode", "FetcherTask")
+                        m.FetcherTask.observeFieldScoped("result", "lastLoaded")
+                        m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/view/seasons?id=" + item[1].DecodeUriComponent() + "&limit=1&offset=0"
+                        m.FetcherTask.control = "RUN"
+                    else if item[0] = "object"
+                        m.FetcherTask = createObject("roSGNode", "FetcherTask")
+                        m.FetcherTask.observeFieldScoped("result", "lastLoaded")
+                        m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/programcard/" + item[1].DecodeUriComponent()
+                        m.FetcherTask.control = "RUN"
+                    end if
+                else
+                    print "Done loading last"
+                end if
+            end sub
+
             sub dataLoaded()
+                m.SaveTask.unobserveField("data")
+                m.FetcherTask = createObject("roSGNode", "FetcherTask")
+                fetchFront()
+            end sub
+
+            sub fetchFront()
+                print "Fetch front"
+                m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/page/tv/front"
+                m.FetcherTask.observeFieldScoped("result", "frontLoaded")
+                m.FetcherTask.control = "RUN"
+
                 print "Data loaded"
                 success = false
                 if m.SaveTask.data.DoesExist("seed") and m.SaveTask.data.seed <> ""
@@ -76,9 +145,17 @@
                     m.RowList.visible = false
                     
                     obj = m.programCards.GetEntry(rowItem).GetEntry(colItem)
-                    if obj.type = "ProgramCard" or obj.type = "Bundle"
-                        print obj.type
-                        m.CurrentScreen = CreateObject("RoSGNode", "SeasonScreen")
+                    print "Selected object type: " obj.type
+                    if obj.type = "Bundle"
+                        print "Bundle type: " + obj.BundleType
+                        if obj.BundleType = "Season"
+                            m.CurrentScreen = CreateObject("RoSGNode", "SeasonScreen")
+                        else
+                            m.CurrentScreen = CreateObject("RoSGNode", "SeriesScreen")
+                        end if
+                        m.CurrentScreen.obj = obj
+                    else if obj.type = "ProgramCard"
+                        m.CurrentScreen = CreateObject("RoSGNode", "SeriesScreen")
                         m.CurrentScreen.obj = obj
                     else if obj.type = "letter"
                         print "Letter type " + m.FetcherTask.control
@@ -110,18 +187,24 @@
                 if press then
                     if key = "back"
                         if not (m.CurrentScreen = invalid)
+                            print "StartScreen CLEANING UP m.CurrentScreen"
                             rowItem = m.RowList.rowItemSelected[0]
                             colItem = m.RowList.rowItemSelected[1]
                             obj = m.programCards.GetEntry(rowItem).GetEntry(colItem)
                             if obj.type = "ProgramCard"
                                 m.CurrentScreen.callFunc("stopPlayback")
                             end if
-                            print "CLEANING UP m.CurrentScreen"
                             m.top.RemoveChild(m.CurrentScreen)
                             m.CurrentScreen = invalid
 
                             m.RowList.visible = true
                             m.RowList.SetFocus(true)
+
+                            if m.last_seen_row <> invalid
+                                m.last_seen_row = createObject("RoSGNode","ContentNode")
+                                m.RowList.content.replaceChild(m.last_seen_row, 0)
+                                beginLoadLast()
+                            end if
 
                             return true
                         end if
@@ -213,15 +296,22 @@
             end sub
 
             sub frontLoaded()
+                print "Front loaded"
                 m.testCard = m.FetcherTask.result.TopSpots.Items[0]
-                m.SaveTask.task = "load"
-                m.SaveTask.observeField("data", "dataLoaded")
-                m.SaveTask.control = "RUN"
 
                 m.testComponents = createObject("RoArray", 3, true)
                 m.programCards = []
 
                 listContent = createObject("RoSGNode", "ContentNode")
+
+                if m.global.DoesExist("savetask") and m.global.savetask <> Invalid and m.global.savetask.data.DoesExist("last") and m.global.savetask.data["last"].Len() > 0
+                    m.last_seen_row = createObject("RoSGNode","ContentNode")
+                    m.last_seen_row.title = "Sidst set"
+                    listContent.appendChild(m.last_seen_row)
+                    ' Add placeholder for "last seen"
+                    m.programCards.Push([])
+                end if
+
                 ' No longer populated
                 ' row = addProgramCard(m.FetcherTask.result.TopSpots.Items, "Top indhold")
                 ' listContent.appendChild(row)
@@ -250,6 +340,16 @@
                 print "SETTING THE FOCUS"
                 m.top.setFocus(true)
                 print "AFTER SETTING THE FOCUS"
+
+                beginLoadLast()
+            end sub
+
+            sub beginLoadLast()
+                if m.global.DoesExist("savetask") and m.global.savetask <> Invalid and m.global.savetask.data.DoesExist("last")
+                    m.last_array = m.global.savetask.data["last"].Split(";")
+                    ? m.last_array
+                    loadLast()
+                end if
             end sub
 
             sub loadAlphabet(listContent as object) as object

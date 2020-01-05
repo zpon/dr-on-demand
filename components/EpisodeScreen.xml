@@ -110,7 +110,7 @@
                 if press then
                     if key = "back"
                         if not (m.CurrentScreen = invalid)
-                            print "CLEANING UP m.CurrentScreen"
+                            print "EpisodeScreen CLEANING UP m.CurrentScreen"
                             m.CurrentScreen.callFunc("stopPlayback")
                             m.top.RemoveChild(m.CurrentScreen)
                             m.CurrentScreen = invalid

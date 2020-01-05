@@ -23,8 +23,8 @@
                 ' Downloaded episodes to be displayed
                 m.episodes = []
 
-                m.list.ObserveField("itemSelected", "listItemSelected")
-                m.list.ObserveField("itemFocused", "listItemFocused")
+                m.list.ObserveFieldScoped("itemSelected", "listItemSelected")
+                m.list.ObserveFieldScoped("itemFocused", "listItemFocused")
             End Sub
 
             sub listItemSelected()
@@ -39,8 +39,8 @@
                     obj = m.episodes.GetEntry(selectedItem)
                     print obj.type
                     m.CurrentScreen = CreateObject("RoSGNode", "PlayerScreen")
-                    m.CurrentScreen.ObserveField("done", "videoDone")
-                    m.CurrentScreen.ObserveField("progress", "videoProgress")
+                    m.CurrentScreen.ObserveFieldScoped("done", "videoDone")
+                    m.CurrentScreen.ObserveFieldScoped("progress", "videoProgress")
                     if obj.DoesExist("Urn") and m.global.savetask.data.DoesExist(obj.Urn)
                         m.CurrentScreen.seek = m.global.savetask.data[obj.Urn].ToInt()
                     else
@@ -51,6 +51,7 @@
                     m.CurrentScreen.id = "CURRENT_TEST"
                     m.top.AppendChild(m.CurrentScreen)
                     m.CurrentScreen.SetFocus(true)
+                    m.visible = false
                 end if
             end sub
 
@@ -127,7 +128,7 @@
                 if press then
                     if key = "back"
                         if not (m.CurrentScreen = invalid)
-                            print "CLEANING UP m.CurrentScreen"
+                            print "SeasonScreen CLEANING UP m.CurrentScreen"
                             m.CurrentScreen.callFunc("stopPlayback")
                             m.top.RemoveChild(m.CurrentScreen)
                             m.CurrentScreen = invalid
@@ -135,6 +136,7 @@
                             m.list.visible = true
                             m.group.visible = true
                             m.list.SetFocus(true)
+                            m.visible = true
 
                             return true
                         end if
@@ -172,14 +174,14 @@
                         m.FetcherTask.url = "https://www.dr.dk/mu-online/api/1.4/list/" + m.top.obj.Slug + "?limit=20&offset=" + m.offset.ToStr()
                     end if
                 end if
-                m.FetcherTask.observeField("result", "seasonDataLoaded")
+                m.FetcherTask.ObserveFieldScoped("result", "seasonDataLoaded")
                 m.FetcherTask.control = "RUN"
             end Sub
 
             Sub seasonDataLoaded()
                 ? m.FetcherTask.result.Items
                 items = m.FetcherTask.result.Items
-                if items.Count() > 0 and items[0].DoesExist("SeasonNumber"):
+                if items.Count() > 0 and items[0].DoesExist("SeasonNumber")
                     m.labelTitle.text = items[0].SeriesTitle + " - Sæson " + items[0].SeasonNumber.ToStr()
                 end if
                 for i = 0 To items.Count() - 1 Step 1

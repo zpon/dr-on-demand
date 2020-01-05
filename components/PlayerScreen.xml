@@ -67,9 +67,89 @@
                 m.RowList.content = m.LoadTask.content
 			end Sub
             
+            function unique(arr as Object)
+                res = []
+                table = {}
+                for i = 0 to arr.Count() - 1
+                    k = arr[i].toStr().Split(":")
+                    print "Looking at"
+                    ? k
+                    if k.Count() > 2 and table.doesExist(k[2])
+                        print "Already exist " ; table[k[2]]
+                        res.Delete(table[k[2]])
+                    end if
+                    res.push(arr[i])
+                    if k.Count() > 2
+                        table[k[2]] = res.Count() - 1
+                    end if
+                end for
+                return res
+            end function
+
             Sub cardSet()
                 print "cardSet"
                 ? m.top.card
+
+                if m.global.DoesExist("savetask") and m.global.savetask <> Invalid
+                    obj = m.top.card
+                    print "Update progress. Urn: " + obj.Urn
+                    last = ""
+                    if m.global.savetask.data.DoesExist("last")
+                        last = m.global.savetask.data["last"]
+                    end if
+
+                    ? last
+                    last_array = []
+                    if last.Trim().Len() > 0
+                        last_array = last.Split(";")
+                    end if
+                    ? last_array
+
+                    urn = ""
+                    if obj.DoesExist("Urn")
+                        urn = "object:" + obj.Urn.EncodeUriComponent()
+                    end if
+                    if obj.DoesExist("SeriesUrn")
+                        urn = urn + ":" + obj.SeriesUrn.EncodeUriComponent()
+                    end if
+                    'if obj.DoesExist("SeriesUrn")
+                    '    urn = "series:" + obj.SeriesUrn.EncodeUriComponent()
+                    'else if obj.DoesExsit("SeasonUrn")
+                    '    urn = "season:" + obj.SeasonUrn.EncodeUriComponent()
+                    'end if
+                    for i = 0 to last_array.Count() - 1
+                        if last_array[i] = urn
+                            last_array.Delete(i)
+                        end if
+                    end for
+                    if urn.Len() > 0
+                        last_array.Push(urn)
+                        last_array = unique(last_array)
+                        ? last_array
+                        if last_array.Count() > 10
+                            last_array.shift()
+                        end if
+                        ? last_array
+                        last = ""
+                        for i = 0 to last_array.Count() - 1
+                            if last.Len() > 0
+                                last.appendString(";", 1)
+                            end if
+                            last = last + last_array[i]
+                        end for
+                        print "Last:"
+                        ? last
+
+                        d = m.global.savetask.data
+                        d.AddReplace("last", last)
+                        m.global.savetask.data = d
+                        m.global.savetask.task = "save"
+                        m.global.savetask.Control = "RUN"
+                    else
+                        print "No urn?"
+                    end if
+                end if
+
                 m.FetcherTask.url = m.top.card.PrimaryAsset.Uri
                 m.FetcherTask.observeField("result", "play")
                 m.FetcherTask.control = "RUN"

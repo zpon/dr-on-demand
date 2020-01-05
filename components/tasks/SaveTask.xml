@@ -17,8 +17,8 @@
     end sub
 
     sub test()
-      print "Data changed:"
-      ? m.top.data
+      ' print "Data changed:"
+      ' ? m.top.data
     end sub
 
     sub store()
@@ -28,10 +28,11 @@
         for each item in m.top.data:
             print "key: " + item
             print "val: " + m.top.data[item]
-            sec.Write(item, m.top.data[item])
+            'sec.Write(item, m.top.data[item])
         end for
+        succ = sec.WriteMulti(m.top.data)
         sec.flush()
-        print "Save done"
+        print "Save done, success: " ; succ
       else if m.top.task = "load":
         data = {}
         for each key in sec.GetKeyList():
