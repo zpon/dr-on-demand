@@ -25,19 +25,13 @@
                 ' m.top.doStop = false
 
                 m.video.ObserveField("state", "stateChange")
+
+                m.dialog = m.top.findNode("dialog")
             End Sub
 
             Sub stateChange()
                 print "State: " + m.video.state
                 m.top.progress = m.video.position
-                ' if m.video.state = "finished"
-                '     m.top.progress = 100
-                '     m.top.done = true
-                ' else if m.video.state <> "none"
-                '     m.top.progress = min(m.video.position / max(1, m.video.duration) * 100, 100)
-                ' else
-                '     print "None state"
-                ' end if
 
                 print "Progress: " + m.top.progress.ToStr()
                 print "Urn: " + m.top.card.Urn
@@ -195,12 +189,27 @@
                 'item.SubtitleTracks = subTracks
                 ? item
                 m.video.content = item
-                m.video.control = "play"
-                print "Seek to: " + m.top.seek.ToStr()
-                m.video.seek = m.top.seek
-
-                m.video.SetFocus(true)
+                if m.top.seek <> 0
+                    m.dialog.visible = true
+                    m.dialog.title = "Fortsæt eller start forfra?"
+                    m.dialog.buttons = ["Fortsæt (" + MillisecondsToString(m.top.seek*1000) + ")", "Start forfra"]
+                    m.dialog.setFocus(true)
+                    m.dialog.observeField("buttonSelected", "onDialogSelect")
+                else
+                    m.video.control = "play"
+                end if
             end Sub
+
+            sub onDialogSelect()
+                ? m.dialog.buttonSelected
+                m.dialog.visible = false
+                m.video.control = "play"
+                if m.dialog.buttonSelected = 0 and m.top.seek <> 0
+                    print "Seek to: " + m.top.seek.ToStr()
+                    m.video.seek = m.top.seek
+                end if
+                m.video.SetFocus(true)
+            end sub
             ]]>
     </script>
     <children>
@@ -226,6 +235,10 @@
             showRowCounter="[true]" 
             focusXOffset="[119,0]"
 	    	rowFocusAnimationStyle = "floatingFocus"/> 
+        <Dialog id="dialog"
+            title="foo"
+            visible="false">
+        </Dialog>
     </children>
 </component>
 
